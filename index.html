@@ -3,30 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Budget Dashboard</title>
+    <title>Sync Budget</title>
     
-    <!-- เรียกไฟล์ Manifest -->
+    <!-- เรียกใช้ Manifest และ Icon สำหรับ PWA -->
     <link rel="manifest" href="manifest.json">
-    
-    <!-- ไอคอนสำหรับ iOS และเว็บ -->
     <link rel="apple-touch-icon" href="icon.png">
-    <link rel="icon" href="icon.png"> 
-    
-    <!-- นำเข้าฟอนต์ Prompt -->
+    <link rel="icon" href="icon.png">
+
+    <!-- ฟอนต์ Prompt -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Tailwind CSS และ Chart.js -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         body { font-family: 'Prompt', sans-serif; }
+        /* ซ่อนลูกศรใน input type number */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
     </style>
 
     <script>
-        // โครงสร้างเริ่มต้น (กรณีเปิดแอปครั้งแรก หรือกดล้างข้อมูล)
-        const defaultData = [
+        // โครงสร้างงบประมาณเริ่มต้น
+        let budgetData = [
             { id: 'daily', name: 'ใช้ในชีวิตประจำวัน', limit: 2500, spent: 0, color: '#3b82f6' }, 
             { id: 'invest', name: 'เงินออม + ลงทุน', limit: 2500, spent: 0, color: '#10b981' }, 
             { id: 'parents', name: 'ให้พ่อแม่', limit: 2000, spent: 0, color: '#8b5cf6' }, 
@@ -36,22 +41,19 @@
             { id: 'net', name: 'ค่าอินเทอร์เน็ต', limit: 199, spent: 0, color: '#64748b' } 
         ];
 
-        // ดึงข้อมูลจาก Local Storage ถ้าไม่มีให้ใช้ defaultData
-        let budgetData = JSON.parse(localStorage.getItem('syncBudgetData')) || JSON.parse(JSON.stringify(defaultData));
         let budgetChart = null;
 
-        // ฟังก์ชันเซฟข้อมูลลงเครื่อง
-        function saveData() {
-            localStorage.setItem('syncBudgetData', JSON.stringify(budgetData));
+        // โหลดข้อมูลจากเครื่อง
+        function loadLocalData() {
+            const savedData = localStorage.getItem('mySyncBudget');
+            if (savedData) {
+                budgetData = JSON.parse(savedData);
+            }
         }
 
-        // ฟังก์ชันล้างข้อมูลประจำเดือน
-        function resetData() {
-            if(confirm("คุณต้องการล้างยอดใช้จ่ายทั้งหมดเพื่อเริ่มเดือนใหม่ใช่หรือไม่?")) {
-                budgetData = JSON.parse(JSON.stringify(defaultData));
-                saveData();
-                renderApp();
-            }
+        // เซฟข้อมูลลงเครื่อง
+        function saveLocalData() {
+            localStorage.setItem('mySyncBudget', JSON.stringify(budgetData));
         }
 
         function renderApp() {
@@ -59,16 +61,15 @@
             const selectCategory = document.getElementById('income-category');
             container.innerHTML = '';
             
-            // สร้างตัวเลือก Dropdown
-            if (selectCategory.options.length === 0) {
-                budgetData.forEach((item, index) => {
-                    let option = document.createElement('option');
-                    option.value = index;
-                    option.text = item.name;
-                    if(index === 1) option.selected = true; // Default ที่ลงทุน
-                    selectCategory.appendChild(option);
-                });
-            }
+            // รีเซ็ต Dropdown
+            selectCategory.innerHTML = '';
+            budgetData.forEach((item, index) => {
+                let option = document.createElement('option');
+                option.value = index;
+                option.text = item.name;
+                if(index === 1) option.selected = true; 
+                selectCategory.appendChild(option);
+            });
 
             let totalSpent = 0;
             let totalBudget = 0;
@@ -80,8 +81,10 @@
 
             budgetData.forEach((item, index) => {
                 const remaining = item.limit - item.spent;
-                const spendPercent = Math.min((item.spent / item.limit) * 100, 100).toFixed(1);
-                const scalePercent = ((item.limit / totalBudget) * 100).toFixed(1);
+                // ป้องกันหารด้วยศูนย์กรณีตั้งงบเป็น 0
+                const limitCalc = item.limit > 0 ? item.limit : 1; 
+                const spendPercent = Math.min((item.spent / limitCalc) * 100, 100).toFixed(1);
+                const scalePercent = totalBudget > 0 ? ((item.limit / totalBudget) * 100).toFixed(1) : 0; 
                 
                 const barColor = spendPercent > 80 ? 'bg-red-500' : 'bg-blue-900';
                 const textColor = remaining < 0 ? 'text-red-500' : 'text-gray-500';
@@ -141,7 +144,10 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'right', labels: { font: { family: 'Prompt', size: 10 }, boxWidth: 12 } }
+                            legend: {
+                                position: 'right',
+                                labels: { font: { family: 'Prompt', size: 10 }, boxWidth: 12 }
+                            }
                         },
                         cutout: '65%'
                     }
@@ -155,7 +161,7 @@
             if (!isNaN(amount) && amount > 0) {
                 budgetData[index].spent += amount;
                 input.value = '';
-                saveData(); // บันทึกลง Local Storage ทันที
+                saveLocalData();
                 renderApp();
             }
         }
@@ -169,7 +175,7 @@
             if (!isNaN(amount) && amount > 0) {
                 budgetData[catIndex].limit += amount;
                 amountInput.value = '';
-                saveData(); // บันทึกลง Local Storage ทันที
+                saveLocalData();
                 renderApp();
                 
                 const toast = document.getElementById('toast');
@@ -180,7 +186,51 @@
             }
         }
 
-        window.onload = renderApp;
+        // --- ฟังก์ชันสำหรับหน้าต่างแก้ไขงบประมาณ ---
+        function openSettings() {
+            const form = document.getElementById('settings-form');
+            form.innerHTML = '';
+            
+            budgetData.forEach((item, index) => {
+                form.innerHTML += `
+                    <div class="mb-3">
+                        <label class="block text-sm text-gray-700 mb-1 font-medium">${item.name}</label>
+                        <input type="number" id="edit-limit-${index}" value="${item.limit}" class="border border-gray-300 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-900">
+                    </div>
+                `;
+            });
+            document.getElementById('settings-modal').classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            budgetData.forEach((item, index) => {
+                const newVal = parseFloat(document.getElementById(`edit-limit-${index}`).value);
+                if (!isNaN(newVal) && newVal >= 0) {
+                    item.limit = newVal;
+                }
+            });
+            saveLocalData();
+            renderApp();
+            closeSettings();
+        }
+
+        function resetData() {
+            if (confirm("ต้องการล้างข้อมูลยอดใช้จ่ายเพื่อเริ่มเดือนใหม่ใช่หรือไม่? (งบประมาณที่ตั้งไว้จะไม่หายไป)")) {
+                // ล้างเฉพาะยอดใช้จ่าย (spent) แต่เก็บ limit ไว้
+                budgetData.forEach(item => item.spent = 0);
+                saveLocalData();
+                renderApp();
+            }
+        }
+
+        window.onload = () => {
+            loadLocalData();
+            renderApp();
+        };
     </script>
 </head>
 <body class="bg-gray-50 pb-12 antialiased">
@@ -188,15 +238,26 @@
     <!-- Header Section -->
     <div class="bg-blue-900 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-10">
         <div class="flex justify-between items-center mb-4">
-            <h1 class="text-xl font-semibold tracking-wide">SYNC APP</h1>
-            <!-- ปุ่มรีเซ็ตข้อมูลประจำเดือน -->
-            <button onclick="resetData()" class="text-xs bg-red-500 hover:bg-red-600 px-3 py-1 rounded-full shadow-sm transition-colors">
-                ↺ ล้างข้อมูล
-            </button>
+            <h1 class="text-xl font-semibold tracking-wide">SYNC BUDGET</h1>
+            <div class="flex gap-3">
+                <button onclick="resetData()" class="text-blue-200 hover:text-white transition-colors">
+                    <!-- Icon Refresh -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
+                <button onclick="openSettings()" class="text-blue-200 hover:text-white transition-colors">
+                    <!-- Icon Settings -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
         </div>
-        <div class="flex justify-between items-center px-1">
+        <div class="flex justify-between items-center px-2">
             <div class="text-left">
-                <p class="text-blue-200 text-xs uppercase tracking-wider mb-1">รายรับรวม</p>
+                <p class="text-blue-200 text-xs uppercase tracking-wider mb-1">งบทั้งหมด</p>
                 <p class="text-lg font-semibold"><span id="total-budget">9,000</span> ฿</p>
             </div>
             <div class="text-center">
@@ -212,22 +273,26 @@
 
     <div class="max-w-md mx-auto px-4 mt-6">
         
+        <!-- Dashboard Chart Section -->
         <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
-            <h2 class="text-sm font-semibold text-gray-700 mb-2">สัดส่วนงบประมาณ</h2>
+            <h2 class="text-sm font-semibold text-gray-700 mb-2">สัดส่วนงบประมาณ (Scale)</h2>
             <div class="relative h-48 w-full">
                 <canvas id="budgetChart"></canvas>
             </div>
         </div>
 
+        <!-- Add Income Section -->
         <div class="bg-blue-50 rounded-xl shadow-sm p-4 mb-6 border border-blue-100">
             <h2 class="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
                 </svg>
-                บันทึกรายรับเพิ่มเติม
+                บันทึกรายรับ / โปะเงินเพิ่ม
             </h2>
             <div class="flex flex-col gap-2">
-                <select id="income-category" class="border border-blue-200 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"></select>
+                <select id="income-category" class="border border-blue-200 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                    <!-- Options จะถูกสร้างจาก JavaScript -->
+                </select>
                 <div class="flex gap-2">
                     <input type="number" id="income-amount" placeholder="จำนวนเงิน (บาท)" class="border border-blue-200 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
                     <button onclick="addIncome()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-blue-700 transition-colors">เพิ่มเงิน</button>
@@ -235,13 +300,41 @@
             </div>
         </div>
 
+        <!-- Notification Toast -->
         <div id="toast" class="hidden fixed top-24 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-full shadow-lg text-sm transition-opacity z-50">
-            ✅ อัปเดตยอดเรียบร้อย!
+            ✅ อัปเดตข้อมูลเรียบร้อย!
         </div>
 
+        <!-- Budget Cards List -->
         <h2 class="text-sm font-semibold text-gray-700 mb-3 px-1">รายการใช้จ่ายแต่ละหมวด</h2>
-        <div id="budget-cards"></div>
+        <div id="budget-cards">
+            <!-- ข้อมูลหมวดหมู่จะถูกแทรกที่นี่ -->
+        </div>
         
     </div>
+
+    <!-- Modal ตั้งค่างบประมาณ -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl">
+            <div class="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">⚙️ ปรับสัดส่วนงบประมาณ</h2>
+                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="settings-form" class="p-5 overflow-y-auto flex-1">
+                <!-- Input จะถูกสร้างจาก JavaScript -->
+            </div>
+            
+            <div class="p-5 border-t border-gray-100 flex gap-3">
+                <button onclick="closeSettings()" class="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors">ยกเลิก</button>
+                <button onclick="saveSettings()" class="flex-1 bg-blue-900 text-white py-3 rounded-xl font-medium hover:bg-blue-800 transition-colors">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
