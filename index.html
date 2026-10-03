@@ -1,396 +1,574 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sync Budget</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon.png">
-    <link rel="icon" href="icon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fafafa">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Sync Budget</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1f2937; --sky:#9ca3af;
+  --bg:#fafafa; --surface:#ffffff; --ink:#1f2937; --muted:#9ca3af; --line:#f0f0f0;
+  --red:#e5484d; --green:#16a34a;
+  --radius:16px; color-scheme:light;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Prompt',system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);
+  padding-bottom:calc(190px + var(--safe-b));-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid #6d8ff0;outline-offset:2px}
+.wrap{max-width:480px;margin:0 auto;padding:0 16px}
+.num{font-variant-numeric:tabular-nums}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+/* ---------- hero ---------- */
+.hero{color:var(--ink);padding:calc(14px + var(--safe-t)) 0 6px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.brand{font-weight:500;font-size:15px}
+.month{font-size:13px;color:var(--sky);font-weight:300}
+.icon-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;color:var(--sky);margin-right:-10px}
+.icon-btn:active{background:var(--line)}
+.icon-btn svg{width:24px;height:24px;pointer-events:none}
+.left-label{font-size:14px;color:var(--muted);font-weight:300}
+.left-amount{font-size:46px;font-weight:500;line-height:1.15;letter-spacing:-.01em}
+.left-amount small{font-size:22px;font-weight:400;margin-left:4px;color:var(--sky)}
+.left-amount.neg{color:var(--red)}
+.sub{display:flex;gap:18px;font-size:13px;color:var(--muted);margin-top:4px;font-weight:300}
+.sub b{color:var(--ink);font-weight:500}
 
-    <style>
-        body { font-family: 'Prompt', sans-serif; }
-        input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none; margin: 0;
-        }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
+/* envelope strip: segment width = share of budget, fill = spent */
+.strip{display:flex;gap:3px;height:8px;margin-top:22px}
+.seg{position:relative;border-radius:4px;overflow:hidden;min-width:6px;
+  background:color-mix(in srgb,var(--c) 20%,#fff)}
+.seg i{position:absolute;inset:0 auto 0 0;background:var(--c);transition:width .35s ease}
+.seg.over i{background:var(--red)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);margin-top:10px;font-weight:300}
+.strip-note{font-size:12px;color:var(--muted);margin-top:10px;font-weight:300}
 
-    <script>
-        let budgetData = [
-            { id: 'daily', name: 'ใช้ในชีวิตประจำวัน', limit: 2500, spent: 0, color: '#3b82f6', percent: 0.2778 }, 
-            { id: 'invest', name: 'เงินออม + ลงทุน', limit: 2500, spent: 0, color: '#10b981', percent: 0.2778 }, 
-            { id: 'parents', name: 'ให้พ่อแม่', limit: 2000, spent: 0, color: '#8b5cf6', percent: 0.2222 }, 
-            { id: 'happy', name: 'งบเพื่อความสุข', limit: 861, spent: 0, color: '#f59e0b', percent: 0.0957 }, 
-            { id: 'claude', name: 'ค่า Claude Pro', limit: 740, spent: 0, color: '#ef4444', percent: 0.0822 }, 
-            { id: 'gas', name: 'ค่าน้ำมัน', limit: 200, spent: 0, color: '#06b6d4', percent: 0.0222 }, 
-            { id: 'net', name: 'ค่าอินเทอร์เน็ต', limit: 199, spent: 0, color: '#64748b', percent: 0.0221 } 
-        ];
+/* ---------- sections ---------- */
+section{margin-top:28px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:0 4px 10px}
+.sec-head h2{font-size:15px;font-weight:500}
+.sec-head span{font-size:12px;color:var(--muted)}
+.panel{background:var(--surface);border-radius:var(--radius);border:1px solid var(--line);overflow:hidden}
 
-        let transactions = [];
-        let budgetChart = null;
+.env{display:block;width:100%;text-align:left;padding:14px 16px;border-top:1px solid var(--line);position:relative}
+.env:first-child{border-top:0}
+.env.sel{background:color-mix(in srgb,var(--c) 5%,#fff)}
+.env.sel::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--c)}
+.env-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.env-name{font-weight:400;display:flex;align-items:center;gap:8px;min-width:0}
+.env-name span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.env-left{font-weight:500;white-space:nowrap}
+.env-left.neg{color:var(--red)}
+.bar{height:4px;border-radius:4px;background:#f3f4f6;margin:10px 0 6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px;background:var(--c);transition:width .35s ease}
+.bar.warn i{background:#f5a524}.bar.over i{background:var(--red)}
+.env-meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
 
-        function loadLocalData() {
-            const savedData = localStorage.getItem('mySyncBudget');
-            if (savedData) {
-                try {
-                    let parsed = JSON.parse(savedData);
-                    budgetData = budgetData.map((item, index) => {
-                        let savedItem = parsed[index] || {};
-                        return {
-                            ...item,
-                            spent: (savedItem.spent === undefined || isNaN(savedItem.spent) || savedItem.spent === null) ? 0 : savedItem.spent,
-                            limit: (savedItem.limit === undefined || isNaN(savedItem.limit) || savedItem.limit === null) ? item.limit : savedItem.limit
-                        };
-                    });
-                } catch(e) { console.error(e); }
-            }
-            
-            const savedLogs = localStorage.getItem('mySyncLogs');
-            if (savedLogs) {
-                try {
-                    transactions = JSON.parse(savedLogs).filter(log => !isNaN(log.amount)); 
-                } catch(e) {}
-            }
-        }
+/* history */
+.day{font-size:12px;color:var(--muted);padding:14px 16px 2px}
+.log{display:flex;align-items:center;gap:12px;padding:10px 8px 10px 16px;border-top:1px solid var(--line)}
+.day+.log{border-top:0}
+.log .dot{width:7px;height:7px}
+.log-main{flex:1;min-width:0}
+.log-cat{font-size:14px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-time{font-size:12px;color:var(--muted)}
+.log-amt{font-weight:500;white-space:nowrap}
+.log-amt.out{color:var(--red)}.log-amt.in{color:var(--green)}
+.del{width:36px;height:36px;border-radius:10px;color:#d1d5db;display:grid;place-items:center;flex:none}
+.del:active{background:var(--line)}
+.del svg{width:18px;height:18px;pointer-events:none}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:14px}
 
-        function saveLocalData() {
-            localStorage.setItem('mySyncBudget', JSON.stringify(budgetData));
-            localStorage.setItem('mySyncLogs', JSON.stringify(transactions));
-        }
+/* ---------- entry dock ---------- */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px 0 calc(12px + var(--safe-b))}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 10px;scrollbar-width:none;max-width:480px;margin:0 auto}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid #e5e7eb;font-size:13px;white-space:nowrap;color:#6b7280}
+.chip.on{border-color:var(--ink);color:var(--ink);font-weight:500}
+.entry{display:flex;gap:8px}
+.mode{display:flex;background:#f3f4f6;border-radius:12px;padding:3px;flex:none}
+.mode button{padding:0 12px;border-radius:9px;font-size:14px;color:var(--muted);height:42px}
+.mode button.on{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.mode button.on[data-m="expense"]{color:var(--red)}.mode button.on[data-m="income"]{color:var(--green)}
+.amt{flex:1;min-width:0;height:48px;border:1px solid #e5e7eb;border-radius:12px;padding:0 12px;font-size:18px;background:var(--surface)}
+.amt:focus{outline:none;border-color:var(--ink)}
+.go{height:48px;padding:0 18px;border-radius:12px;background:var(--navy);color:#fff;font-weight:500;flex:none}
+.go:active{transform:scale(.97)}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;min-height:16px}
 
-        function renderApp() {
-            const container = document.getElementById('budget-cards');
-            const selectCategory = document.getElementById('income-category');
-            if(!container || !selectCategory) return;
+/* ---------- settings sheet ---------- */
+dialog{border:0;padding:0;margin:auto auto 0;width:100%;max-width:520px;max-height:88vh;border-radius:24px 24px 0 0;
+  background:var(--surface);color:var(--ink);display:none;flex-direction:column}
+dialog[open]{display:flex;animation:up .25s ease}
+dialog::backdrop{background:rgba(0,0,0,.25)}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;padding:16px 16px 0 20px}
+.sheet-head h2{font-size:18px;font-weight:600}
+.close{width:40px;height:40px;border-radius:12px;font-size:22px;color:var(--muted)}
+.tabs{display:flex;gap:4px;margin:12px 16px 0;background:#f3f4f6;border-radius:12px;padding:3px}
+.tabs button{flex:1;height:38px;border-radius:9px;font-size:14px;color:var(--muted)}
+.tabs button.on{background:var(--surface);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.sheet-body{overflow-y:auto;padding:16px 20px calc(20px + var(--safe-b))}
+.field{display:grid;grid-template-columns:1fr 120px;gap:8px;margin-bottom:10px;align-items:center}
+.in{height:44px;border:1px solid #e5e7eb;border-radius:10px;padding:0 10px;font-size:16px;background:#fff;width:100%}
+.in:focus{outline:none;border-color:var(--ink)}
+.in.r{text-align:right}
+.btn{width:100%;height:48px;border-radius:12px;background:var(--navy);color:#fff;font-weight:500;margin-top:6px}
+.btn.ghost{background:#f3f4f6;color:var(--ink)}
+.btn.danger{background:transparent;color:var(--red);border:1px solid color-mix(in srgb,var(--red) 40%,transparent)}
+.help{font-size:13px;color:#6b7280;margin-bottom:12px;line-height:1.5}
+.preview{font-size:14px;margin:12px 0}
+.preview div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
+.group{margin-top:22px}
+.group h3{font-size:14px;font-weight:600;margin-bottom:8px}
+.row2{display:flex;gap:8px}.row2 .btn{margin-top:0}
 
-            container.innerHTML = '';
-            
-            if(selectCategory.options.length === 0) {
-                budgetData.forEach((item, index) => {
-                    let option = document.createElement('option');
-                    option.value = index;
-                    option.text = item.name;
-                    if(index === 1) option.selected = true; 
-                    selectCategory.appendChild(option);
-                });
-            }
-
-            let totalSpent = 0;
-            let totalBudget = 0;
-
-            budgetData.forEach(item => {
-                totalSpent += item.spent;
-                totalBudget += item.limit;
-            });
-
-            budgetData.forEach((item, index) => {
-                const remaining = item.limit - item.spent;
-                const limitCalc = item.limit > 0 ? item.limit : 1; 
-                const spendPercent = Math.min((item.spent / limitCalc) * 100, 100).toFixed(1);
-                const scalePercent = totalBudget > 0 ? ((item.limit / totalBudget) * 100).toFixed(1) : 0; 
-                
-                const barColor = spendPercent > 80 ? 'bg-red-500' : 'bg-blue-900';
-                const textColor = remaining < 0 ? 'text-red-500' : 'text-gray-500';
-
-                container.innerHTML += `
-                    <div class="bg-white rounded-xl shadow-sm p-4 mb-4 border-l-4" style="border-color: ${item.color}">
-                        <div class="flex justify-between items-start mb-1">
-                            <div>
-                                <h3 class="font-medium text-gray-800">${item.name}</h3>
-                                <p class="text-xs text-gray-400">สัดส่วน: ${scalePercent}% ของรายรับ</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-sm font-semibold ${textColor}">${remaining.toLocaleString()} ฿ คงเหลือ</span>
-                                <p class="text-xs text-gray-400">จากงบ ${Math.round(item.limit).toLocaleString()} ฿</p>
-                            </div>
-                        </div>
-                        <div class="w-full bg-gray-100 rounded-full h-2 mb-3 mt-2">
-                            <div class="${barColor} h-2 rounded-full transition-all duration-300" style="width: ${spendPercent}%"></div>
-                        </div>
-                        <div class="flex gap-2 mt-2">
-                            <input type="number" id="expense-${index}" placeholder="จ่ายไป (บาท)" class="border border-gray-200 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-900">
-                            <button onclick="addExpense(${index})" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-black transition-colors shadow-sm active:scale-95">หักเงิน</button>
-                        </div>
-                    </div>
-                `;
-            });
-
-            document.getElementById('total-budget').innerText = Math.round(totalBudget).toLocaleString();
-            document.getElementById('total-spent').innerText = Math.round(totalSpent).toLocaleString();
-            document.getElementById('total-remaining').innerText = Math.round(totalBudget - totalSpent).toLocaleString();
-
-            updateChart();
-            renderLogs();
-        }
-
-        function addLog(type, category, amount) {
-            const now = new Date();
-            const timeString = now.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
-            transactions.unshift({ date: timeString, type: type, category: category, amount: amount });
-            if(transactions.length > 50) transactions.pop(); 
-            saveLocalData();
-        }
-
-        function renderLogs() {
-            const logContainer = document.getElementById('transaction-logs');
-            if(!logContainer) return;
-            logContainer.innerHTML = '';
-            
-            if(transactions.length === 0) {
-                logContainer.innerHTML = `<p class="text-sm text-gray-400 text-center py-4">ยังไม่มีประวัติการทำรายการ</p>`;
-                return;
-            }
-
-            transactions.forEach(log => {
-                const isExpense = log.type === 'expense';
-                const sign = isExpense ? '-' : '+';
-                const color = isExpense ? 'text-red-500' : 'text-green-500';
-                
-                logContainer.innerHTML += `
-                    <div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-                        <div>
-                            <p class="text-sm font-medium text-gray-700">${log.category}</p>
-                            <p class="text-xs text-gray-400">${log.date}</p>
-                        </div>
-                        <span class="text-sm font-semibold ${color}">${sign}${log.amount.toLocaleString()} ฿</span>
-                    </div>
-                `;
-            });
-        }
-
-        function addExpense(index) {
-            const input = document.getElementById(`expense-${index}`);
-            const amount = parseFloat(input.value);
-            if (!isNaN(amount) && amount > 0) {
-                budgetData[index].spent += amount;
-                addLog('expense', budgetData[index].name, amount);
-                input.value = '';
-                saveLocalData();
-                renderApp();
-            }
-        }
-
-        function addIncome() {
-            const amountInput = document.getElementById('income-amount');
-            const categorySelect = document.getElementById('income-category');
-            const amount = parseFloat(amountInput.value);
-            const catIndex = parseInt(categorySelect.value);
-
-            if (!isNaN(amount) && amount > 0) {
-                budgetData[catIndex].limit += amount;
-                addLog('income', `โปะเงิน: ${budgetData[catIndex].name}`, amount);
-                amountInput.value = '';
-                saveLocalData();
-                renderApp();
-                showToast("อัปเดตยอดเรียบร้อย!");
-            }
-        }
-
-        function updateChart() {
-            try {
-                // ดักบั๊กกราฟพัง ถ้าโหลด Chart.js ไม่ติด แอปต้องยังทำงานต่อได้
-                if (typeof Chart === 'undefined') return; 
-                
-                const canvas = document.getElementById('budgetChart');
-                if(!canvas) return;
-                
-                const ctx = canvas.getContext('2d');
-                const labels = budgetData.map(item => item.name);
-                const data = budgetData.map(item => item.limit);
-                const colors = budgetData.map(item => item.color);
-
-                if (budgetChart) {
-                    budgetChart.data.datasets[0].data = data;
-                    budgetChart.update();
-                } else {
-                    budgetChart = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
-                        options: {
-                            responsive: true, maintainAspectRatio: false, cutout: '65%',
-                            plugins: { legend: { position: 'right', labels: { font: { family: 'Prompt', size: 10 }, boxWidth: 12 } } }
-                        }
-                    });
-                }
-            } catch(e) { console.error("Chart Error", e); }
-        }
-
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            if(toast) {
-                toast.innerText = msg;
-                toast.style.display = 'block';
-                setTimeout(() => toast.style.display = 'none', 3000);
-            }
-        }
-
-        // ==============================================
-        // ส่วนควบคุม Modal ฟันเฟือง (แก้ปัญหาจิ้มไม่ติด)
-        // ==============================================
-        function openSettings() {
-            const modal = document.getElementById('settings-modal');
-            if (modal) {
-                modal.style.display = 'flex';
-                switchTab('manual');
-            }
-        }
-        
-        function closeSettings() {
-            const modal = document.getElementById('settings-modal');
-            if (modal) modal.style.display = 'none';
-        }
-
-        function switchTab(tab) {
-            const tabManual = document.getElementById('tab-manual');
-            const tabAuto = document.getElementById('tab-auto');
-            const btnManual = document.getElementById('btn-tab-manual');
-            const btnAuto = document.getElementById('btn-tab-auto');
-            const form = document.getElementById('manual-form');
-
-            if (!tabManual || !tabAuto || !btnManual || !btnAuto || !form) return;
-
-            if (tab === 'manual') {
-                tabManual.style.display = 'block';
-                tabAuto.style.display = 'none';
-                btnManual.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-blue-900 text-blue-900 bg-white';
-                btnAuto.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 bg-gray-50';
-                
-                form.innerHTML = '';
-                budgetData.forEach((item, index) => {
-                    form.innerHTML += `
-                        <div class="mb-3">
-                            <label class="block text-sm text-gray-700 mb-1">${item.name}</label>
-                            <input type="number" id="edit-limit-${index}" value="${Math.round(item.limit)}" class="border border-gray-300 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-900">
-                        </div>`;
-                });
-            } else {
-                tabManual.style.display = 'none';
-                tabAuto.style.display = 'block';
-                btnAuto.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-blue-900 text-blue-900 bg-white';
-                btnManual.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 bg-gray-50';
-            }
-        }
-
-        function saveManualSettings() {
-            budgetData.forEach((item, index) => {
-                const inputEl = document.getElementById(`edit-limit-${index}`);
-                if(inputEl) {
-                    const newVal = parseFloat(inputEl.value);
-                    if (!isNaN(newVal) && newVal >= 0) item.limit = newVal;
-                }
-            });
-            saveLocalData();
-            renderApp();
-            closeSettings();
-        }
-
-        function autoDistribute() {
-            const inputEl = document.getElementById('auto-total-amount');
-            if(!inputEl) return;
-            
-            const totalInput = parseFloat(inputEl.value);
-            if (!isNaN(totalInput) && totalInput > 0) {
-                let calculatedTotal = 0;
-                budgetData.forEach((item, index) => {
-                    let safePercent = item.percent || 0;
-                    let newLimit = Math.round(totalInput * safePercent);
-                    if(index === budgetData.length - 1) {
-                        newLimit = totalInput - calculatedTotal;
-                    }
-                    item.limit = newLimit;
-                    calculatedTotal += newLimit;
-                });
-                saveLocalData();
-                renderApp();
-                closeSettings();
-                showToast("จัดสรรงบอัตโนมัติสำเร็จ!");
-            } else {
-                alert("กรุณาระบุยอดเงินรวมให้ถูกต้อง");
-            }
-        }
-
-        function resetData() {
-            if (confirm("คุณต้องการล้างประวัติการใช้จ่ายทั้งหมดเพื่อเริ่มเดือนใหม่ใช่หรือไม่?")) {
-                budgetData.forEach(item => item.spent = 0);
-                transactions = [];
-                saveLocalData();
-                renderApp();
-            }
-        }
-
-        function hardReset() {
-            if (confirm("⚠️ รีเซ็ตแอปทั้งหมดกลับเป็นค่าเริ่มต้นหรือไม่? (ข้อมูลที่บันทึกไว้จะหายทั้งหมด)")) {
-                localStorage.removeItem('mySyncBudget');
-                localStorage.removeItem('mySyncLogs');
-                location.reload();
-            }
-        }
-
-        window.onload = () => {
-            loadLocalData();
-            renderApp();
-        };
-    </script>
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(175px + var(--safe-b));transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  background:#1f2937;color:#fff;border-radius:12px;padding:10px 10px 10px 16px;font-size:14px;display:flex;gap:12px;align-items:center;
+  transition:.2s ease;z-index:50;max-width:calc(100% - 32px);white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{color:#fff;text-decoration:underline;font-weight:500;padding:4px 8px}
+.toast button[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
 </head>
-<body class="bg-gray-50 pb-12 antialiased">
-    
-    <!-- ดัน Header ให้อยู่ชั้นบนสุด (z-60) -->
-    <div class="bg-blue-900 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-[60]">
-        <div class="flex justify-between items-center mb-4">
-            <h1 class="text-xl font-semibold tracking-wide">SYNC BUDGET</h1>
-            <div class="flex gap-2">
-                <!-- ขยายพื้นที่กดปุ่มให้ใหญ่ขึ้น (p-3) และป้องกัน SVG บล็อกการกด -->
-                <button onclick="resetData()" class="p-3 -mr-2 text-blue-200 hover:text-white active:scale-90 transition-transform" title="เริ่มเดือนใหม่">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                </button>
-                <button onclick="openSettings()" class="p-3 -mr-3 text-blue-200 hover:text-white active:scale-90 transition-transform" title="จัดการงบ">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <div class="flex justify-between items-center px-2">
-            <div class="text-left">
-                <p class="text-blue-200 text-xs uppercase tracking-wider mb-1">งบทั้งหมด</p>
-                <p class="text-lg font-semibold"><span id="total-budget">0</span> ฿</p>
-            </div>
-            <div class="text-center">
-                <p class="text-blue-200 text-xs uppercase tracking-wider mb-1">ใช้ไป</p>
-                <p class="text-lg font-semibold text-red-300"><span id="total-spent">0</span> ฿</p>
-            </div>
-            <div class="text-right">
-                <p class="text-blue-200 text-xs uppercase tracking-wider mb-1">คงเหลือ</p>
-                <p class="text-lg font-semibold text-green-300"><span id="total-remaining">0</span> ฿</p>
-            </div>
-        </div>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="brand">Sync Budget</div>
+        <div class="month" id="month"></div>
+      </div>
+      <button class="icon-btn" id="open-settings" aria-label="ตั้งค่างบ">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.3c.4-1.8 2.9-1.8 3.4 0a1.7 1.7 0 0 0 2.5 1c1.6-.9 3.3.9 2.4 2.4a1.7 1.7 0 0 0 1 2.6c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 0 0-1 2.5c.9 1.6-.8 3.3-2.4 2.4a1.7 1.7 0 0 0-2.5 1c-.5 1.8-3 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1c-1.5.9-3.3-.8-2.4-2.4a1.7 1.7 0 0 0-1-2.5c-1.8-.5-1.8-3 0-3.4a1.7 1.7 0 0 0 1-2.6c-.9-1.5.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
     </div>
+    <div class="left-label">เหลือใช้ได้เดือนนี้</div>
+    <div class="left-amount num" id="total-left">0<small>฿</small></div>
+    <div class="sub num">
+      <span>งบทั้งหมด <b id="total-budget">0</b> ฿</span>
+      <span>ใช้ไป <b id="total-spent">0</b> ฿</span>
+    </div>
+    <div class="strip" id="strip" aria-hidden="true"></div>
+    <div class="strip-note" id="strip-note"></div>
+  </div>
+</header>
 
-    <div class="max-w-md mx-auto px-4 mt-6">
-        
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-6 relative z-10">
-            <h2 class="text-sm font-semibold text-gray-700 mb-2">สัดส่วนงบประมาณ (Scale)</h2>
-            <div class="relative h-48 w-full"><canvas id="budgetChart"></canvas></div>
-            <button onclick="hardReset()" class="absolute top-4 right-4 text-[10px] text-red-500 hover:bg-red-50 border border-red-200 bg-white px-2 py-1 rounded-md shadow-sm z-20 active:scale-95">ล้างข้อมูลแอป</button>
+<main class="wrap">
+  <section>
+    <div class="sec-head"><h2>ซองงบประมาณ</h2><span>แตะซองเพื่อเลือกบันทึก</span></div>
+    <div class="panel" id="envelopes"></div>
+  </section>
+  <section>
+    <div class="sec-head"><h2>ประวัติรายการ</h2><span id="log-count"></span></div>
+    <div class="panel" id="logs"></div>
+  </section>
+</main>
+
+<!-- quick entry -->
+<div class="dock">
+  <div class="chips" id="chips" role="radiogroup" aria-label="เลือกหมวด"></div>
+  <div class="wrap">
+    <form class="entry" id="entry-form" autocomplete="off">
+      <div class="mode" role="group" aria-label="ประเภทรายการ">
+        <button type="button" data-m="expense" class="on">จ่าย</button>
+        <button type="button" data-m="income">รับ</button>
+      </div>
+      <input class="amt num" id="amount" type="text" inputmode="decimal" placeholder="0.00" aria-label="จำนวนเงิน (บาท)">
+      <button class="go" type="submit" id="go">หักเงิน</button>
+    </form>
+    <div class="hint" id="hint"></div>
+  </div>
+</div>
+
+<!-- settings -->
+<dialog id="settings" aria-labelledby="settings-title">
+  <div class="sheet-head">
+    <h2 id="settings-title">ตั้งค่างบ</h2>
+    <button class="close" data-close aria-label="ปิด">×</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="manual" class="on">กำหนดเอง</button>
+    <button role="tab" data-tab="auto">แบ่งอัตโนมัติ</button>
+    <button role="tab" data-tab="data">ข้อมูล</button>
+  </div>
+  <div class="sheet-body">
+    <div data-pane="manual">
+      <p class="help">แก้ชื่อซองและงบของแต่ละซองได้ ยอดที่ใช้ไปแล้วจะไม่เปลี่ยน</p>
+      <div id="manual-fields"></div>
+      <button class="btn" id="save-manual">บันทึกงบ</button>
+    </div>
+    <div data-pane="auto" hidden>
+      <p class="help">ใส่รายรับทั้งเดือน แอปจะแบ่งเข้าซองตามสัดส่วนที่ตั้งไว้</p>
+      <input class="in r num" id="auto-total" type="text" inputmode="decimal" placeholder="เช่น 9000">
+      <div class="preview num" id="auto-preview"></div>
+      <button class="btn" id="apply-auto">แบ่งงบตามนี้</button>
+    </div>
+    <div data-pane="data" hidden>
+      <div class="group" style="margin-top:0">
+        <h3>เริ่มเดือนใหม่</h3>
+        <p class="help">ล้างยอดที่ใช้ไปและประวัติทั้งหมด โดยเก็บงบและชื่อซองไว้เหมือนเดิม</p>
+        <button class="btn ghost" id="new-month">เริ่มเดือนใหม่</button>
+      </div>
+      <div class="group">
+        <h3>สำรองข้อมูล</h3>
+        <p class="help">ข้อมูลเก็บอยู่ในเครื่องนี้เท่านั้น ส่งออกไฟล์ไว้ก่อนเปลี่ยนเครื่องหรือล้างเบราว์เซอร์</p>
+        <div class="row2">
+          <button class="btn ghost" id="export">ส่งออกไฟล์</button>
+          <button class="btn ghost" id="import-btn">นำเข้าไฟล์</button>
         </div>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+      <div class="group">
+        <h3>รีเซ็ตแอป</h3>
+        <p class="help">ลบทุกอย่างและกลับไปใช้ค่าเริ่มต้น ย้อนกลับไม่ได้</p>
+        <button class="btn danger" id="hard-reset">ล้างข้อมูลแอปทั้งหมด</button>
+      </div>
+    </div>
+  </div>
+</dialog>
 
-        <div class="bg-blue-50 rounded-xl shadow-sm p-4 mb-6 border border-blue-100 relative z-10">
-            <h2 class="text-sm font-semibold text-blue-900 mb-3">บันทึกรายรับ / โปะเงินเพิ่ม</h2>
-            <div class="flex flex-col gap-2">
-                <select id="income-category" class="border border-blue-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"></select>
-                <div class="flex gap-2">
-                    <input type="number" id="income-amount" placeholder="จำนวนเงิน (บาท)" class="border border-blue-200 rounded-lg p-2 text-
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button id="toast-undo" hidden>เลิกทำ</button></div>
+
+<script>
+'use strict';
+const DEFAULTS = [
+  { id:'daily',   name:'ใช้ในชีวิตประจำวัน', limit:2500, color:'#3b82f6', percent:0.2778 },
+  { id:'invest',  name:'เงินออม + ลงทุน',   limit:2500, color:'#10b981', percent:0.2778 },
+  { id:'parents', name:'ให้พ่อแม่',          limit:2000, color:'#8b5cf6', percent:0.2222 },
+  { id:'happy',   name:'งบเพื่อความสุข',     limit:861,  color:'#f59e0b', percent:0.0957 },
+  { id:'claude',  name:'ค่า Claude Pro',     limit:740,  color:'#ef4444', percent:0.0822 },
+  { id:'gas',     name:'ค่าน้ำมัน',           limit:200,  color:'#06b6d4', percent:0.0222 },
+  { id:'net',     name:'ค่าอินเทอร์เน็ต',     limit:199,  color:'#64748b', percent:0.0221 }
+];
+const KEY_BUDGET = 'mySyncBudget', KEY_LOGS = 'mySyncLogs', KEY_PREF = 'mySyncPref';
+const MAX_LOGS = 300;
+
+let budget = [], logs = [], selId = 'daily', mode = 'expense', toastTimer = null;
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const fmt = n => r2(n).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+const num = v => { const n = parseFloat(String(v).replace(/[,\s฿]/g, '')); return isFinite(n) ? n : NaN; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const store = {
+  get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ toast('บันทึกไม่สำเร็จ: พื้นที่เก็บข้อมูลเต็มหรือถูกปิดไว้'); } }
+};
+
+/* ---------- data ---------- */
+function load(){
+  const saved = store.get(KEY_BUDGET);
+  const list = Array.isArray(saved) ? saved : [];
+  budget = DEFAULTS.map((d, i) => {
+    // จับคู่ด้วย id ก่อน (เวอร์ชันเก่าจับคู่ด้วยลำดับ ซึ่งพังถ้าลำดับเปลี่ยน)
+    const s = list.find(x => x && x.id === d.id) || (list[i] && !list[i].id ? list[i] : {}) || {};
+    const limit = num(s.limit), spent = num(s.spent);
+    return {
+      ...d,
+      name: typeof s.name === 'string' && s.name.trim() ? s.name : d.name,
+      limit: isNaN(limit) || limit < 0 ? d.limit : r2(limit),
+      spent: isNaN(spent) ? 0 : r2(spent)
+    };
+  });
+  const savedLogs = store.get(KEY_LOGS);
+  logs = (Array.isArray(savedLogs) ? savedLogs : [])
+    .filter(l => l && !isNaN(num(l.amount)))
+    .map(l => {
+      // log จากเวอร์ชันเก่าไม่มี catId — จับคู่จากชื่อหมวด เพื่อให้ลบแล้วคืนยอดได้ถูกซอง
+      let catId = l.catId;
+      if (!catId && l.category){
+        const nm = String(l.category).replace(/^โปะเงิน:\s*/, '');
+        const m = budget.find(b => b.name === nm);
+        if (m) catId = m.id;
+      }
+      return { ...l, id: l.id || uid(), catId, amount: r2(num(l.amount)) };
+    });
+  const pref = store.get(KEY_PREF) || {};
+  if (budget.some(b => b.id === pref.selId)) selId = pref.selId;
+}
+function save(){
+  store.set(KEY_BUDGET, budget);
+  store.set(KEY_LOGS, logs);
+  store.set(KEY_PREF, { selId });
+}
+const cat = id => budget.find(b => b.id === id);
+
+/* ---------- render ---------- */
+function render(){
+  const total = r2(budget.reduce((s, b) => s + b.limit, 0));
+  const spent = r2(budget.reduce((s, b) => s + b.spent, 0));
+  const left = r2(total - spent);
+
+  $('month').textContent = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  $('total-left').innerHTML = `${fmt(left)}<small>฿</small>`;
+  $('total-left').classList.toggle('neg', left < 0);
+  $('total-budget').textContent = fmt(total);
+  $('total-spent').textContent = fmt(spent);
+
+  // strip
+  $('strip').innerHTML = budget.map(b => {
+    const p = b.limit > 0 ? Math.min(b.spent / b.limit, 1) * 100 : (b.spent > 0 ? 100 : 0);
+    const grow = total > 0 ? b.limit : 1;
+    return `<div class="seg ${b.spent > b.limit ? 'over' : ''}" style="--c:${b.color};flex:${grow} 1 0"><i style="width:${p}%"></i></div>`;
+  }).join('');
+  const usedPct = total > 0 ? Math.round(spent / total * 100) : 0;
+  const overCount = budget.filter(b => b.spent > b.limit).length;
+  $('strip-note').textContent = `ใช้ไปแล้ว ${usedPct}% ของงบ` + (overCount ? ` และมี ${overCount} ซองที่ใช้เกินงบ` : '');
+
+  // envelopes
+  $('envelopes').innerHTML = budget.map(b => {
+    const rem = r2(b.limit - b.spent);
+    const ratio = b.limit > 0 ? b.spent / b.limit : (b.spent > 0 ? 1.01 : 0);
+    const state = ratio > 1 ? 'over' : ratio >= .8 ? 'warn' : '';
+    const share = total > 0 ? Math.round(b.limit / total * 1000) / 10 : 0;
+    return `<button class="env ${b.id === selId ? 'sel' : ''}" data-id="${b.id}" style="--c:${b.color}">
+      <div class="env-row">
+        <div class="env-name"><span class="dot"></span><span>${esc(b.name)}</span></div>
+        <div class="env-left num ${rem < 0 ? 'neg' : ''}">${rem < 0 ? 'เกิน ' + fmt(-rem) : 'เหลือ ' + fmt(rem)} ฿</div>
+      </div>
+      <div class="bar ${state}"><i style="width:${Math.min(ratio, 1) * 100}%"></i></div>
+      <div class="env-meta num"><span>ใช้ไป ${fmt(b.spent)} / ${fmt(b.limit)} ฿</span><span>${share}% ของงบ</span></div>
+    </button>`;
+  }).join('');
+
+  // chips
+  $('chips').innerHTML = budget.map(b =>
+    `<button type="button" role="radio" aria-checked="${b.id === selId}" class="chip ${b.id === selId ? 'on' : ''}" data-id="${b.id}" style="--c:${b.color}"><span class="dot"></span>${esc(b.name)}</button>`
+  ).join('');
+
+  renderLogs();
+  updateHint();
+}
+
+function renderLogs(){
+  $('log-count').textContent = logs.length ? `${logs.length} รายการ` : '';
+  if (!logs.length){
+    $('logs').innerHTML = `<div class="empty">ยังไม่มีรายการ ใส่จำนวนเงินด้านล่างแล้วกดบันทึกได้เลย</div>`;
+    return;
+  }
+  let html = '', lastDay = '';
+  logs.forEach(l => {
+    const d = l.ts ? new Date(l.ts) : null;
+    const day = d ? d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) : 'รายการเก่า';
+    if (day !== lastDay){ html += `<div class="day">${day}</div>`; lastDay = day; }
+    const time = d ? d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : esc(l.date || '');
+    const out = l.type === 'expense';
+    const c = cat(l.catId);
+    const label = c ? (out ? c.name : `เติมงบ: ${c.name}`) : (l.category || '');
+    html += `<div class="log">
+      <span class="dot" style="--c:${c ? c.color : '#94a3b8'}"></span>
+      <div class="log-main"><div class="log-cat">${esc(label)}</div><div class="log-time">${time}</div></div>
+      <div class="log-amt num ${out ? 'out' : 'in'}">${out ? '−' : '+'}${fmt(l.amount)} ฿</div>
+      <button class="del" data-del="${l.id}" aria-label="ลบรายการนี้">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>
+      </button>
+    </div>`;
+  });
+  $('logs').innerHTML = html;
+}
+
+function updateHint(){
+  const c = cat(selId);
+  $('go').textContent = mode === 'expense' ? 'หักเงิน' : 'เติมงบ';
+  document.querySelectorAll('.mode button').forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+  if (!c) return;
+  const rem = r2(c.limit - c.spent);
+  $('hint').textContent = mode === 'expense'
+    ? `จ่ายจาก “${c.name}” ตอนนี้เหลือ ${fmt(rem)} ฿`
+    : `เพิ่มงบให้ “${c.name}” ตอนนี้งบ ${fmt(c.limit)} ฿`;
+}
+
+/* ---------- actions ---------- */
+function select(id){
+  selId = id;
+  store.set(KEY_PREF, { selId });
+  render();
+  const chip = document.querySelector(`.chip[data-id="${id}"]`);
+  chip && chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+function submitEntry(e){
+  e.preventDefault();
+  const input = $('amount');
+  const amount = r2(num(input.value));
+  const c = cat(selId);
+  if (!c) return;
+  if (isNaN(amount) || amount <= 0){
+    toast('ใส่จำนวนเงินที่มากกว่า 0');
+    input.focus();
+    return;
+  }
+  if (mode === 'expense') c.spent = r2(c.spent + amount);
+  else c.limit = r2(c.limit + amount);
+  const log = { id: uid(), ts: Date.now(), type: mode, catId: c.id, category: c.name, amount };
+  logs.unshift(log);
+  if (logs.length > MAX_LOGS) logs.length = MAX_LOGS;
+  input.value = '';
+  save(); render();
+  toast(mode === 'expense' ? `หัก ${fmt(amount)} ฿ จาก ${c.name}` : `เติมงบ ${fmt(amount)} ฿ ให้ ${c.name}`, () => removeLog(log.id, true));
+  if (mode === 'expense' && c.spent > c.limit) setTimeout(() => toast(`“${c.name}” ใช้เกินงบแล้ว ${fmt(c.spent - c.limit)} ฿`, () => removeLog(log.id, true)), 1800);
+}
+
+function removeLog(id, silent){
+  const i = logs.findIndex(l => l.id === id);
+  if (i < 0) return;
+  const l = logs[i], c = cat(l.catId);
+  if (!silent){
+    const msg = c ? `ลบรายการ ${fmt(l.amount)} ฿ และคืนยอดให้ “${c.name}” ใช่ไหม?`
+                  : `ลบรายการเก่านี้ใช่ไหม? (รายการจากเวอร์ชันก่อน จะไม่ปรับยอดในซอง)`;
+    if (!confirm(msg)) return;
+  }
+  if (c){
+    if (l.type === 'expense') c.spent = r2(Math.max(0, c.spent - l.amount));
+    else c.limit = r2(Math.max(0, c.limit - l.amount));
+  }
+  logs.splice(i, 1);
+  save(); render();
+  toast(silent ? 'เลิกทำแล้ว' : 'ลบรายการแล้ว');
+}
+
+function toast(msg, undo){
+  const t = $('toast'), u = $('toast-undo');
+  $('toast-msg').textContent = msg;
+  u.hidden = !undo;
+  u.onclick = undo ? () => { t.classList.remove('show'); undo(); } : null;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), undo ? 4500 : 2500);
+}
+
+/* ---------- settings ---------- */
+function openSettings(){ fillManual(); switchTab('manual'); $('settings').showModal(); }
+function closeSettings(){ $('settings').close(); }
+function switchTab(tab){
+  document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
+  document.querySelectorAll('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== tab);
+  if (tab === 'auto') autoPreview();
+}
+function fillManual(){
+  $('manual-fields').innerHTML = budget.map(b => `
+    <div class="field">
+      <input class="in" data-name="${b.id}" value="${esc(b.name)}" maxlength="40" aria-label="ชื่อซอง">
+      <input class="in r num" data-limit="${b.id}" value="${r2(b.limit)}" inputmode="decimal" aria-label="งบของ ${esc(b.name)}">
+    </div>`).join('');
+}
+function saveManual(){
+  let bad = false;
+  budget.forEach(b => {
+    const n = document.querySelector(`[data-name="${b.id}"]`).value.trim();
+    const v = num(document.querySelector(`[data-limit="${b.id}"]`).value);
+    if (n) b.name = n;
+    if (!isNaN(v) && v >= 0) b.limit = r2(v); else bad = true;
+  });
+  save(); render(); closeSettings();
+  toast(bad ? 'บันทึกแล้ว ยกเว้นช่องที่ตัวเลขไม่ถูกต้อง' : 'บันทึกงบแล้ว');
+}
+function autoSplit(total){
+  const sumP = budget.reduce((s, b) => s + (b.percent || 0), 0) || 1;
+  let acc = 0;
+  return budget.map((b, i) => {
+    const v = i === budget.length - 1 ? r2(total - acc) : Math.round(total * (b.percent || 0) / sumP);
+    acc += v; return v;
+  });
+}
+function autoPreview(){
+  const total = num($('auto-total').value);
+  if (isNaN(total) || total <= 0){ $('auto-preview').innerHTML = ''; return; }
+  const parts = autoSplit(total);
+  $('auto-preview').innerHTML = budget.map((b, i) =>
+    `<div><span>${esc(b.name)}</span><span>${fmt(parts[i])} ฿</span></div>`).join('');
+}
+function applyAuto(){
+  const total = num($('auto-total').value);
+  if (isNaN(total) || total <= 0){ toast('ใส่ยอดรายรับรวมที่มากกว่า 0'); return; }
+  autoSplit(total).forEach((v, i) => budget[i].limit = v);
+  save(); render(); closeSettings();
+  toast(`แบ่งงบ ${fmt(total)} ฿ เข้าซองแล้ว`);
+}
+function newMonth(){
+  if (!confirm('ล้างยอดที่ใช้ไปและประวัติทั้งหมดเพื่อเริ่มเดือนใหม่ใช่ไหม?')) return;
+  budget.forEach(b => b.spent = 0);
+  logs = [];
+  save(); render(); closeSettings();
+  toast('เริ่มเดือนใหม่แล้ว');
+}
+function hardReset(){
+  if (!confirm('ลบข้อมูลทั้งหมดและกลับไปใช้ค่าเริ่มต้นใช่ไหม? ย้อนกลับไม่ได้')) return;
+  [KEY_BUDGET, KEY_LOGS, KEY_PREF].forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+  location.reload();
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify({ app: 'sync-budget', v: 2, exported: new Date().toISOString(), budget, logs }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sync-budget-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function importData(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data.budget)) throw new Error('bad');
+      if (!confirm('นำเข้าข้อมูลจากไฟล์นี้แทนข้อมูลปัจจุบันใช่ไหม?')) return;
+      store.set(KEY_BUDGET, data.budget);
+      store.set(KEY_LOGS, Array.isArray(data.logs) ? data.logs : []);
+      load(); render(); closeSettings();
+      toast('นำเข้าข้อมูลแล้ว');
+    } catch(e){ toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองของ Sync Budget'); }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- events ---------- */
+$('envelopes').addEventListener('click', e => {
+  const b = e.target.closest('.env'); if (!b) return;
+  select(b.dataset.id);
+  $('amount').focus({ preventScroll: true });
+});
+$('chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) select(b.dataset.id); });
+$('logs').addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (b) removeLog(b.dataset.del); });
+document.querySelectorAll('.mode button').forEach(b => b.addEventListener('click', () => { mode = b.dataset.m; updateHint(); }));
+$('entry-form').addEventListener('submit', submitEntry);
+$('open-settings').addEventListener('click', openSettings);
+$('settings').addEventListener('click', e => { if (e.target === e.currentTarget || e.target.closest('[data-close]')) closeSettings(); });
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+$('save-manual').addEventListener('click', saveManual);
+$('auto-total').addEventListener('input', autoPreview);
+$('apply-auto').addEventListener('click', applyAuto);
+$('new-month').addEventListener('click', newMonth);
+$('hard-reset').addEventListener('click', hardReset);
+$('export').addEventListener('click', exportData);
+$('import-btn').addEventListener('click', () => $('import-file').click());
+$('import-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importData(f); e.target.value = ''; });
+
+load();
+render();
+
+if ('serviceWorker' in navigator && location.protocol === 'https:'){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
