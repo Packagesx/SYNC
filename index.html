@@ -40,26 +40,28 @@
         let transactions = [];
         let budgetChart = null;
 
-        // ระบบ Auto-Heal ซ่อมแซมข้อมูลที่พังจาก Local Storage
+        // ดึงข้อมูลและซ่อมแซมตัวเลขพังอัตโนมัติ
         function loadLocalData() {
             const savedData = localStorage.getItem('mySyncBudget');
             if (savedData) {
-                let parsed = JSON.parse(savedData);
-                budgetData = budgetData.map((item, index) => {
-                    let savedItem = parsed[index] || {};
-                    return {
-                        ...item, // ใช้โครงสร้างใหม่ล่าสุดเสมอเพื่อกันเปอร์เซ็นต์หาย
-                        spent: (savedItem.spent === undefined || isNaN(savedItem.spent) || savedItem.spent === null) ? 0 : savedItem.spent,
-                        limit: (savedItem.limit === undefined || isNaN(savedItem.limit) || savedItem.limit === null) ? item.limit : savedItem.limit
-                    };
-                });
+                try {
+                    let parsed = JSON.parse(savedData);
+                    budgetData = budgetData.map((item, index) => {
+                        let savedItem = parsed[index] || {};
+                        return {
+                            ...item,
+                            spent: (savedItem.spent === undefined || isNaN(savedItem.spent) || savedItem.spent === null) ? 0 : savedItem.spent,
+                            limit: (savedItem.limit === undefined || isNaN(savedItem.limit) || savedItem.limit === null) ? item.limit : savedItem.limit
+                        };
+                    });
+                } catch(e) { console.error("Data parse error", e); }
             }
             
             const savedLogs = localStorage.getItem('mySyncLogs');
             if (savedLogs) {
-                transactions = JSON.parse(savedLogs);
-                // กรองเฉพาะประวัติที่ไม่พัง
-                transactions = transactions.filter(log => !isNaN(log.amount)); 
+                try {
+                    transactions = JSON.parse(savedLogs).filter(log => !isNaN(log.amount)); 
+                } catch(e) {}
             }
         }
 
@@ -221,23 +223,36 @@
             setTimeout(() => toast.classList.add('hidden'), 3000);
         }
 
+        // --- ระบบสลับแท็บแบบมีระบบป้องกัน ---
         function openSettings() {
-            document.getElementById('settings-modal').classList.remove('hidden');
-            switchTab('manual');
+            const modal = document.getElementById('settings-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                switchTab('manual');
+            }
         }
+        
         function closeSettings() {
-            document.getElementById('settings-modal').classList.add('hidden');
+            const modal = document.getElementById('settings-modal');
+            if (modal) modal.classList.add('hidden');
         }
 
         function switchTab(tab) {
-            document.getElementById('tab-manual').classList.toggle('hidden', tab !== 'manual');
-            document.getElementById('tab-auto').classList.toggle('hidden', tab !== 'auto');
-            
-            document.getElementById('btn-tab-manual').className = `flex-1 py-2 text-sm font-medium border-b-2 ${tab === 'manual' ? 'border-blue-900 text-blue-900' : 'border-transparent text-gray-400'}`;
-            document.getElementById('btn-tab-auto').className = `flex-1 py-2 text-sm font-medium border-b-2 ${tab === 'auto' ? 'border-blue-900 text-blue-900' : 'border-transparent text-gray-400'}`;
+            const tabManual = document.getElementById('tab-manual');
+            const tabAuto = document.getElementById('tab-auto');
+            const btnManual = document.getElementById('btn-tab-manual');
+            const btnAuto = document.getElementById('btn-tab-auto');
+            const form = document.getElementById('manual-form');
 
-            if(tab === 'manual') {
-                const form = document.getElementById('manual-form');
+            // ป้องกันแอปพังถ้าก๊อปปี้โค้ดมาไม่ครบ
+            if (!tabManual || !tabAuto || !btnManual || !btnAuto || !form) return;
+
+            if (tab === 'manual') {
+                tabManual.classList.remove('hidden');
+                tabAuto.classList.add('hidden');
+                btnManual.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-blue-900 text-blue-900 bg-white';
+                btnAuto.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 bg-gray-50';
+                
                 form.innerHTML = '';
                 budgetData.forEach((item, index) => {
                     form.innerHTML += `
@@ -246,13 +261,21 @@
                             <input type="number" id="edit-limit-${index}" value="${Math.round(item.limit)}" class="border border-gray-300 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-900">
                         </div>`;
                 });
+            } else {
+                tabManual.classList.add('hidden');
+                tabAuto.classList.remove('hidden');
+                btnAuto.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-blue-900 text-blue-900 bg-white';
+                btnManual.className = 'flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 bg-gray-50';
             }
         }
 
         function saveManualSettings() {
             budgetData.forEach((item, index) => {
-                const newVal = parseFloat(document.getElementById(`edit-limit-${index}`).value);
-                if (!isNaN(newVal) && newVal >= 0) item.limit = newVal;
+                const inputEl = document.getElementById(`edit-limit-${index}`);
+                if(inputEl) {
+                    const newVal = parseFloat(inputEl.value);
+                    if (!isNaN(newVal) && newVal >= 0) item.limit = newVal;
+                }
             });
             saveLocalData();
             renderApp();
@@ -260,14 +283,15 @@
         }
 
         function autoDistribute() {
-            const totalInput = parseFloat(document.getElementById('auto-total-amount').value);
+            const inputEl = document.getElementById('auto-total-amount');
+            if(!inputEl) return;
+            
+            const totalInput = parseFloat(inputEl.value);
             if (!isNaN(totalInput) && totalInput > 0) {
                 let calculatedTotal = 0;
                 budgetData.forEach((item, index) => {
-                    // ใช้ .percent หรือถ้าไม่มีให้ใช้ 0 ดักไว้กันเหนียว
                     let safePercent = item.percent || 0;
                     let newLimit = Math.round(totalInput * safePercent);
-                    
                     if(index === budgetData.length - 1) {
                         newLimit = totalInput - calculatedTotal;
                     }
@@ -292,7 +316,6 @@
             }
         }
 
-        // เพิ่มฟังก์ชันล้างความจำเครื่องแบบ Hard Reset เผื่อฉุกเฉิน
         function hardReset() {
             if (confirm("⚠️ รีเซ็ตแอปทั้งหมดกลับเป็นค่าเริ่มต้นหรือไม่? (ข้อมูลจะหายทั้งหมด)")) {
                 localStorage.removeItem('mySyncBudget');
@@ -372,13 +395,4 @@
 
     <div id="toast" class="hidden fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg text-sm transition-opacity z-50"></div>
 
-    <div id="settings-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl w-full max-w-sm flex flex-col shadow-2xl overflow-hidden">
-            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <h2 class="text-lg font-semibold text-gray-800">จัดการงบประมาณ</h2>
-                <button onclick="closeSettings()" class="text-gray-400 hover:text-gray-600">✖</button>
-            </div>
-            
-            <div class="flex border-b border-gray-200">
-                <button id="btn-tab-manual" onclick="switchTab('manual')" class="flex-1 py-2 text-sm font-medium border-b-2 border-blue-900 text-blue-900">กำหนดเอง</button>
-               
+    <!-- ⚠️ โคร
