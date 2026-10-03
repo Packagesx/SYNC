@@ -40,12 +40,27 @@
         let transactions = [];
         let budgetChart = null;
 
+        // ระบบ Auto-Heal ซ่อมแซมข้อมูลที่พังจาก Local Storage
         function loadLocalData() {
             const savedData = localStorage.getItem('mySyncBudget');
-            if (savedData) budgetData = JSON.parse(savedData);
+            if (savedData) {
+                let parsed = JSON.parse(savedData);
+                budgetData = budgetData.map((item, index) => {
+                    let savedItem = parsed[index] || {};
+                    return {
+                        ...item, // ใช้โครงสร้างใหม่ล่าสุดเสมอเพื่อกันเปอร์เซ็นต์หาย
+                        spent: (savedItem.spent === undefined || isNaN(savedItem.spent) || savedItem.spent === null) ? 0 : savedItem.spent,
+                        limit: (savedItem.limit === undefined || isNaN(savedItem.limit) || savedItem.limit === null) ? item.limit : savedItem.limit
+                    };
+                });
+            }
             
             const savedLogs = localStorage.getItem('mySyncLogs');
-            if (savedLogs) transactions = JSON.parse(savedLogs);
+            if (savedLogs) {
+                transactions = JSON.parse(savedLogs);
+                // กรองเฉพาะประวัติที่ไม่พัง
+                transactions = transactions.filter(log => !isNaN(log.amount)); 
+            }
         }
 
         function saveLocalData() {
@@ -157,6 +172,7 @@
                 budgetData[index].spent += amount;
                 addLog('expense', budgetData[index].name, amount);
                 input.value = '';
+                saveLocalData();
                 renderApp();
             }
         }
@@ -171,6 +187,7 @@
                 budgetData[catIndex].limit += amount;
                 addLog('income', `โปะเงิน: ${budgetData[catIndex].name}`, amount);
                 amountInput.value = '';
+                saveLocalData();
                 renderApp();
                 showToast("อัปเดตยอดเรียบร้อย!");
             }
@@ -247,7 +264,10 @@
             if (!isNaN(totalInput) && totalInput > 0) {
                 let calculatedTotal = 0;
                 budgetData.forEach((item, index) => {
-                    let newLimit = Math.round(totalInput * item.percent);
+                    // ใช้ .percent หรือถ้าไม่มีให้ใช้ 0 ดักไว้กันเหนียว
+                    let safePercent = item.percent || 0;
+                    let newLimit = Math.round(totalInput * safePercent);
+                    
                     if(index === budgetData.length - 1) {
                         newLimit = totalInput - calculatedTotal;
                     }
@@ -264,11 +284,20 @@
         }
 
         function resetData() {
-            if (confirm("ต้องการล้างประวัติและยอดใช้จ่ายเพื่อเริ่มเดือนใหม่ใช่หรือไม่? (งบที่ตั้งไว้จะไม่หาย)")) {
+            if (confirm("คุณต้องการล้างประวัติการใช้จ่ายทั้งหมดเพื่อเริ่มเดือนใหม่ใช่หรือไม่? (งบที่ตั้งไว้จะยังคงอยู่)")) {
                 budgetData.forEach(item => item.spent = 0);
                 transactions = [];
                 saveLocalData();
                 renderApp();
+            }
+        }
+
+        // เพิ่มฟังก์ชันล้างความจำเครื่องแบบ Hard Reset เผื่อฉุกเฉิน
+        function hardReset() {
+            if (confirm("⚠️ รีเซ็ตแอปทั้งหมดกลับเป็นค่าเริ่มต้นหรือไม่? (ข้อมูลจะหายทั้งหมด)")) {
+                localStorage.removeItem('mySyncBudget');
+                localStorage.removeItem('mySyncLogs');
+                location.reload();
             }
         }
 
@@ -284,12 +313,12 @@
         <div class="flex justify-between items-center mb-4">
             <h1 class="text-xl font-semibold tracking-wide">SYNC BUDGET</h1>
             <div class="flex gap-3">
-                <button onclick="resetData()" class="text-blue-200 hover:text-white">
+                <button onclick="resetData()" class="text-blue-200 hover:text-white" title="เริ่มเดือนใหม่">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                 </button>
-                <button onclick="openSettings()" class="text-blue-200 hover:text-white">
+                <button onclick="openSettings()" class="text-blue-200 hover:text-white" title="จัดการงบ">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -315,9 +344,10 @@
 
     <div class="max-w-md mx-auto px-4 mt-6">
         
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-6 relative">
             <h2 class="text-sm font-semibold text-gray-700 mb-2">สัดส่วนงบประมาณ (Scale)</h2>
             <div class="relative h-48 w-full"><canvas id="budgetChart"></canvas></div>
+            <button onclick="hardReset()" class="absolute top-4 right-4 text-xs text-red-400 hover:text-red-600 underline">ล้างข้อมูลแอป</button>
         </div>
 
         <div class="bg-blue-50 rounded-xl shadow-sm p-4 mb-6 border border-blue-100">
@@ -351,26 +381,4 @@
             
             <div class="flex border-b border-gray-200">
                 <button id="btn-tab-manual" onclick="switchTab('manual')" class="flex-1 py-2 text-sm font-medium border-b-2 border-blue-900 text-blue-900">กำหนดเอง</button>
-                <button id="btn-tab-auto" onclick="switchTab('auto')" class="flex-1 py-2 text-sm font-medium border-b-2 border-transparent text-gray-400">กระจายอัตโนมัติ</button>
-            </div>
-
-            <div class="p-5 max-h-[60vh] overflow-y-auto no-scrollbar">
-                <div id="tab-manual">
-                    <div id="manual-form"></div>
-                    <button onclick="saveManualSettings()" class="w-full bg-blue-900 text-white py-3 mt-4 rounded-xl font-medium hover:bg-blue-800">บันทึกสัดส่วน</button>
-                </div>
-
-                <div id="tab-auto" class="hidden text-center">
-                    <p class="text-sm text-gray-500 mb-4 text-left">ระบบจะช่วยคำนวณและแบ่งสัดส่วนเงินให้ตาม % ที่เคยวางแผนไว้โดยอัตโนมัติ</p>
-                    <div class="text-left mb-4">
-                        <label class="block text-sm text-gray-700 mb-1 font-medium">ระบุรายรับรวมทั้งหมด</label>
-                        <input type="number" id="auto-total-amount" placeholder="เช่น 10000" class="border border-blue-300 rounded-lg p-3 text-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-900">
-                    </div>
-                    <button onclick="autoDistribute()" class="w-full bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-700 shadow-md">✨ คำนวณและกระจายงบ</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</body>
-</html>
+               
