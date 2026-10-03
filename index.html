@@ -53,7 +53,7 @@
                             limit: (savedItem.limit === undefined || isNaN(savedItem.limit) || savedItem.limit === null) ? item.limit : savedItem.limit
                         };
                     });
-                } catch(e) { console.error("Parse error", e); }
+                } catch(e) { console.error(e); }
             }
             
             const savedLogs = localStorage.getItem('mySyncLogs');
@@ -72,6 +72,8 @@
         function renderApp() {
             const container = document.getElementById('budget-cards');
             const selectCategory = document.getElementById('income-category');
+            if(!container || !selectCategory) return;
+
             container.innerHTML = '';
             
             if(selectCategory.options.length === 0) {
@@ -118,7 +120,7 @@
                         </div>
                         <div class="flex gap-2 mt-2">
                             <input type="number" id="expense-${index}" placeholder="จ่ายไป (บาท)" class="border border-gray-200 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-900">
-                            <button onclick="addExpense(${index})" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-black transition-colors shadow-sm">หักเงิน</button>
+                            <button onclick="addExpense(${index})" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap hover:bg-black transition-colors shadow-sm active:scale-95">หักเงิน</button>
                         </div>
                     </div>
                 `;
@@ -142,6 +144,7 @@
 
         function renderLogs() {
             const logContainer = document.getElementById('transaction-logs');
+            if(!logContainer) return;
             logContainer.innerHTML = '';
             
             if(transactions.length === 0) {
@@ -195,27 +198,34 @@
         }
 
         function updateChart() {
-            const ctx = document.getElementById('budgetChart').getContext('2d');
-            const labels = budgetData.map(item => item.name);
-            const data = budgetData.map(item => item.limit);
-            const colors = budgetData.map(item => item.color);
+            try {
+                // ดักบั๊กกราฟพัง ถ้าโหลด Chart.js ไม่ติด แอปต้องยังทำงานต่อได้
+                if (typeof Chart === 'undefined') return; 
+                
+                const canvas = document.getElementById('budgetChart');
+                if(!canvas) return;
+                
+                const ctx = canvas.getContext('2d');
+                const labels = budgetData.map(item => item.name);
+                const data = budgetData.map(item => item.limit);
+                const colors = budgetData.map(item => item.color);
 
-            if (budgetChart) {
-                budgetChart.data.datasets[0].data = data;
-                budgetChart.update();
-            } else {
-                budgetChart = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, cutout: '65%',
-                        plugins: { legend: { position: 'right', labels: { font: { family: 'Prompt', size: 10 }, boxWidth: 12 } } }
-                    }
-                });
-            }
+                if (budgetChart) {
+                    budgetChart.data.datasets[0].data = data;
+                    budgetChart.update();
+                } else {
+                    budgetChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] },
+                        options: {
+                            responsive: true, maintainAspectRatio: false, cutout: '65%',
+                            plugins: { legend: { position: 'right', labels: { font: { family: 'Prompt', size: 10 }, boxWidth: 12 } } }
+                        }
+                    });
+                }
+            } catch(e) { console.error("Chart Error", e); }
         }
 
-        // ระบบโชว์แจ้งเตือนแบบป้องกันการบังปุ่ม
         function showToast(msg) {
             const toast = document.getElementById('toast');
             if(toast) {
@@ -225,7 +235,9 @@
             }
         }
 
-        // ระบบ Modal แบบ Inline ป้องกันบั๊กค้าง 100%
+        // ==============================================
+        // ส่วนควบคุม Modal ฟันเฟือง (แก้ปัญหาจิ้มไม่ติด)
+        // ==============================================
         function openSettings() {
             const modal = document.getElementById('settings-modal');
             if (modal) {
@@ -309,7 +321,7 @@
         }
 
         function resetData() {
-            if (confirm("คุณต้องการล้างประวัติการใช้จ่ายทั้งหมดเพื่อเริ่มเดือนใหม่ใช่หรือไม่? (งบที่ตั้งไว้จะยังคงอยู่)")) {
+            if (confirm("คุณต้องการล้างประวัติการใช้จ่ายทั้งหมดเพื่อเริ่มเดือนใหม่ใช่หรือไม่?")) {
                 budgetData.forEach(item => item.spent = 0);
                 transactions = [];
                 saveLocalData();
@@ -333,18 +345,19 @@
 </head>
 <body class="bg-gray-50 pb-12 antialiased">
     
-    <!-- Header -->
-    <div class="bg-blue-900 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-10">
+    <!-- ดัน Header ให้อยู่ชั้นบนสุด (z-60) -->
+    <div class="bg-blue-900 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-[60]">
         <div class="flex justify-between items-center mb-4">
             <h1 class="text-xl font-semibold tracking-wide">SYNC BUDGET</h1>
-            <div class="flex gap-3 relative z-20">
-                <button onclick="resetData()" class="text-blue-200 hover:text-white" title="เริ่มเดือนใหม่">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="flex gap-2">
+                <!-- ขยายพื้นที่กดปุ่มให้ใหญ่ขึ้น (p-3) และป้องกัน SVG บล็อกการกด -->
+                <button onclick="resetData()" class="p-3 -mr-2 text-blue-200 hover:text-white active:scale-90 transition-transform" title="เริ่มเดือนใหม่">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                 </button>
-                <button onclick="openSettings()" class="text-blue-200 hover:text-white" title="จัดการงบ">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button onclick="openSettings()" class="p-3 -mr-3 text-blue-200 hover:text-white active:scale-90 transition-transform" title="จัดการงบ">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
@@ -369,31 +382,15 @@
 
     <div class="max-w-md mx-auto px-4 mt-6">
         
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-6 relative">
+        <div class="bg-white rounded-xl shadow-sm p-4 mb-6 relative z-10">
             <h2 class="text-sm font-semibold text-gray-700 mb-2">สัดส่วนงบประมาณ (Scale)</h2>
             <div class="relative h-48 w-full"><canvas id="budgetChart"></canvas></div>
-            <button onclick="hardReset()" class="absolute top-4 right-4 text-[10px] text-red-500 hover:bg-red-50 border border-red-200 bg-white px-2 py-1 rounded-md shadow-sm z-10 transition-colors">ล้างข้อมูลแอป</button>
+            <button onclick="hardReset()" class="absolute top-4 right-4 text-[10px] text-red-500 hover:bg-red-50 border border-red-200 bg-white px-2 py-1 rounded-md shadow-sm z-20 active:scale-95">ล้างข้อมูลแอป</button>
         </div>
 
-        <div class="bg-blue-50 rounded-xl shadow-sm p-4 mb-6 border border-blue-100 relative z-0">
+        <div class="bg-blue-50 rounded-xl shadow-sm p-4 mb-6 border border-blue-100 relative z-10">
             <h2 class="text-sm font-semibold text-blue-900 mb-3">บันทึกรายรับ / โปะเงินเพิ่ม</h2>
             <div class="flex flex-col gap-2">
                 <select id="income-category" class="border border-blue-200 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"></select>
                 <div class="flex gap-2">
-                    <input type="number" id="income-amount" placeholder="จำนวนเงิน (บาท)" class="border border-blue-200 rounded-lg p-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
-                    <button onclick="addIncome()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">เพิ่มเงิน</button>
-                </div>
-            </div>
-        </div>
-
-        <h2 class="text-sm font-semibold text-gray-700 mb-3 px-1">รายการใช้จ่ายแต่ละหมวด</h2>
-        <div id="budget-cards" class="relative z-0"></div>
-        
-        <h2 class="text-sm font-semibold text-gray-700 mt-6 mb-3 px-1">ประวัติรายการล่าสุด (Log)</h2>
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-6 max-h-60 overflow-y-auto no-scrollbar relative z-0">
-            <div id="transaction-logs"></div>
-        </div>
-    </div>
-
-    <!-- แจ้งเตือน Toast แบบ Inline -->
-   
+                    <input type="number" id="income-amount" placeholder="จำนวนเงิน (บาท)" class="border border-blue-200 rounded-lg p-2 text-
